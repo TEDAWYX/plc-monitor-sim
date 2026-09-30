@@ -168,39 +168,23 @@ class ControlPage(QWidget):
         self._send_command(4, "清除故障")
 
     def _send_command(self, cmd: int, name: str):
-        """发送控制命令。"""
-        import asyncio
-
-        async def do_send():
-            ok = await self._client.write_register(8, cmd)
+        """发送控制命令（同步接口，内部由 client 的后台事件循环调度）。"""
+        try:
+            ok = self._client.write_register(8, cmd)
             if ok:
                 self._status_label.setText(f"{name} 命令已发送")
             else:
                 self._status_label.setText(f"{name} 命令发送失败")
-
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(do_send())
-            loop.close()
         except Exception as e:
             self._status_label.setText(f"发送异常: {e}")
 
     def _send_write(self, address: int, value: int, name: str):
-        """发送写入命令。"""
-        import asyncio
-
-        async def do_send():
-            ok = await self._client.write_register(address, value)
+        """发送写入命令（同步接口，内部由 client 的后台事件循环调度）。"""
+        try:
+            ok = self._client.write_register(address, value)
             if ok:
                 self._status_label.setText(f"{name} 成功")
             else:
                 self._status_label.setText(f"{name} 失败")
-
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(do_send())
-            loop.close()
         except Exception as e:
             self._status_label.setText(f"发送异常: {e}")

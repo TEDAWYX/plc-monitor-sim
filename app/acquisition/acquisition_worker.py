@@ -14,9 +14,9 @@
   - 采集周期可配置
   - 线程安全退出（通过 _running 标志位）
 
-注意：
-  本模块在 Phase 3 仅实现核心采集逻辑，不依赖 GUI。
-  可通过控制台脚本独立运行验证。
+注意（V1.1.1）：
+  PlcModbusClient 已改为同步接口（内部自带后台事件循环），
+  本线程直接调用即可，不再自行创建/关闭 asyncio 事件循环。
 """
 
 import logging
@@ -77,18 +77,26 @@ class AcquisitionWorker(QThread):
         self._running = True
         logger.info("[Acquisition] 采集线程启动")
 
-        while self._running:
-            snapshot = self._acquire_once()
-            if snapshot:
-                self.data_ready.emit(snapshot)
+        try:
+            while self._running:
+                snapshot = self._acquire_once()
+                if snapshot:
+                    self.data_ready.emit(snapshot)
 
-                # 通信状态变化时发射信号
-                new_status = snapshot.comm_status
-                if new_status != self._comm_status:
-                    self._comm_status = new_status
-                    self.comm_status_changed.emit(new_status)
+                    # 通信状态变化时发射信号
+                    new_status = snapshot.comm_status
+                    if new_status != self._comm_status:
+                        self._comm_status = new_status
+                        self.comm_status_changed.emit(new_status)
 
-            self.msleep(self._period_ms)
+                self.msleep(self._period_ms)
+        finally:
+            # 线程退出前断开连接并关闭后台事件循环
+            try:
+                self._client.disconnect()
+                self._client.shutdown()
+            except Exception as e:
+                logger.warning(f"[Acquisition] 客户端清理异常: {e}")
 
         logger.info("[Acquisition] 采集线程停止")
 
@@ -103,33 +111,13 @@ class AcquisitionWorker(QThread):
 
     def _acquire_once(self) -> SensorSnapshot | None:
         """执行一次采集。返回 SensorSnapshot，失败返回 None。"""
-        # 1. 确保连接
+        # 1. 确保连接（同步接口，内部自动重连）
         if not self._client.is_connected:
-            # 注意：connect 是 async 方法，在同步线程中需要用 asyncio.run 或事件循环
-            # 这里简化处理：在 QThread 中创建新的事件循环
-            try:
-                import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                connected = loop.run_until_complete(self._client.connect())
-                loop.close()
-                if not connected:
-                    return self._make_error_snapshot("DISCONNECTED")
-            except Exception as e:
-                logger.error(f"[Acquisition] 连接失败: {e}")
+            if not self._client.connect():
                 return self._make_error_snapshot("DISCONNECTED")
 
         # 2. 读取寄存器
-        try:
-            import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            registers = loop.run_until_complete(self._client.read_all_registers())
-            loop.close()
-        except Exception as e:
-            logger.error(f"[Acquisition] 读取失败: {e}")
-            return self._make_error_snapshot("ERROR")
-
+        registers = self._client.read_all_registers()
         if registers is None:
             return self._make_error_snapshot("ERROR")
 
@@ -153,18 +141,7 @@ class AcquisitionWorker(QThread):
             return self._make_error_snapshot("ERROR")
 
         # 5. 心跳检测
-        try:
-            import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            healthy = loop.run_until_complete(
-                self._client.check_communication_health(heartbeat)
-            )
-            loop.close()
-        except Exception:
-            healthy = False
-
-        if not healthy:
+        if not self._client.check_communication_health(heartbeat):
             return self._make_error_snapshot("ERROR")
 
         return SensorSnapshot(
