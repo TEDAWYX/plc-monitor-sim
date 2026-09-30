@@ -1,0 +1,26 @@
+# PLC Monitor Simulation System - Python Dependencies
+# Python 版本要求：3.11 ~ 3.12（推荐）
+# 注意：Python 3.13+ 可能遇到 PySide6 wheel 兼容性问题
+
+# --- 核心依赖 ---
+
+# Modbus TCP 通信（Server + Client）
+# pymodbus 3.7.0+ 使用 SimDevice/SimData 新 API
+pymodbus>=3.7.0,<4.0
+
+# 桌面 GUI 框架
+PySide6>=6.7.0
+
+# 实时趋势曲线
+pyqtgraph>=0.13.0
+
+# 数据处理和 CSV 导出
+pandas>=2.0.0
+
+# --- 开发/测试依赖 ---
+pytest>=8.0.0
+pytest-asyncio>=0.21.0
+
+# --- 可选依赖 ---
+# numpy 通常随 pandas/pyqtgraph 间接安装
+# numpy>=1.26.0
