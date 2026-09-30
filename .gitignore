@@ -54,9 +54,9 @@ Thumbs.db
 data/*.db
 data/*.csv
 
-# Screenshots (only keep selected ones for README)
-screenshots/*.png
-!screenshots/.gitkeep
+# Screenshots
+!screenshots/*.png
+screenshots/.gitkeep
 
 # Logs
 *.log
